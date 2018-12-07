@@ -297,6 +297,7 @@ static struct flashparam_t *m25pxx_search(struct flashparam_t *ptab,
 int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 {
 	struct spiops_t *spi = inst->spi->ops;
+	int rc;
 	uint8_t xbuf[32] = { 0 };
 
 	if (inst == NULL)
@@ -304,7 +305,11 @@ int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 
 	/* try 'READID' command */
 	xbuf[0] = 0x9F;
-	spi->trx(inst->spi, xbuf, xbuf, 4);
+	rc = spi->trx(inst->spi, cs, xbuf, xbuf, 4);
+	if (rc != 0) {
+		fprintf(stderr, "%s: spi trx failed!\n", __func__);
+		return -1;
+	}
 
 	if (xbuf[2] != 0xFF && xbuf[3] != 0xFF)
 		inst->flash_detected = m25pxx_search(inst->flash_db,
@@ -313,7 +318,11 @@ int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 	/* not found, try 'read-signature' command */
 	if (inst->flash_detected == NULL)  {
 		xbuf[0] = 0xAB;
-		spi->trx(inst->spi, xbuf, xbuf, 8);
+		rc = spi->trx(inst->spi, cs, xbuf, xbuf, 8);
+		if (rc != 0) {
+			fprintf(stderr, "%s: spi trx failed!\n", __func__);
+			return -1;
+		}
 
 		if (xbuf[4] != 0xFF)
 			inst->flash_detected = m25pxx_search(inst->flash_db,
@@ -324,7 +333,11 @@ int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 	/* still not found, try 'read_id' (spansion) command */
 	if (inst->flash_detected == NULL)  {
 		xbuf[0] = 0x90;
-		spi->trx(inst->spi, xbuf, xbuf, 4);
+		rc = spi->trx(inst->spi, cs, xbuf, xbuf, 4);
+		if (rc != 0) {
+			fprintf(stderr, "%s:spi trx failed!\n", __func__);
+			return -1;
+		}
 
 		if (xbuf[2] != 0xFF && xbuf[3] != 0xFF)
 			inst->flash_detected = m25pxx_search(inst->flash_db,
@@ -333,8 +346,11 @@ int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 							     0xFF);
 	}
 
-	if (inst->flash_detected == NULL)
+	if (inst->flash_detected == NULL) {
+		printf("typ: 0x%02x, cap: 0x%02x, sig: 0x%02x\n",
+		       xbuf[2], xbuf[3], xbuf[4]);
 		return -1;
+	}
 
 	if ((inst->flash_detected->size + 0x10) != inst->xbufsize) {
 		inst->xbufsize = 0;
@@ -351,6 +367,7 @@ int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 		}
 		inst->xbufsize = inst->flash_detected->size + 0x10;
 	}
+	inst->cs = cs;
 
 	return 0;
 }
@@ -385,7 +402,7 @@ int m25pxx_read(struct m25pxxflash_t *inst,
 	inst->xbuf[2] = (addr & 0x0000FF00) >> 8;
 	inst->xbuf[3] = (addr & 0x000000FF) >> 0;
 
-	rc = spi->trx(inst->spi, inst->xbuf, inst->xbuf, size + 4);
+	rc = spi->trx(inst->spi, inst->cs, inst->xbuf, inst->xbuf, size + 4);
 	if (rc != 0) {
 		fprintf(stderr,
 			"%s: spi trx returned error (%d)!\n", __func__, rc);
@@ -406,7 +423,7 @@ int m25pxx_rdsr(struct m25pxxflash_t *inst, uint8_t *reg)
 	if (inst == NULL)
 		return -1;
 
-	rc = spi->trx(inst->spi, xbuf, xbuf, 2);
+	rc = spi->trx(inst->spi, inst->cs, xbuf, xbuf, 2);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot poll status register!\n",
 			__func__);
@@ -429,7 +446,7 @@ int m25pxx_wdsr(struct m25pxxflash_t *inst, uint8_t reg)
 	if (inst == NULL)
 		return -1;
 
-	rc = spi->trx(inst->spi, xbuf, xbuf, 2);
+	rc = spi->trx(inst->spi, inst->cs, xbuf, xbuf, 2);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot write status register!\n",
 			__func__);
@@ -458,17 +475,17 @@ int m25pxx_chiperase(struct m25pxxflash_t *inst,
 	}
 
 	if (progress)
-		progress->fct(progress->arg, 0);
+		progress->fct(progress->arg, 0, 0);
 
 	xbuf[0] = 0x06;	/* write enable */
-	rc = spi->trx(inst->spi, xbuf, xbuf, 1);
+	rc = spi->trx(inst->spi, inst->cs, xbuf, xbuf, 1);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot set write enable!\n", __func__);
 		return -1;
 	}
 
 	xbuf[0] = 0xC7;	/* bulk erase */
-	rc = spi->trx(inst->spi, xbuf, xbuf, 1);
+	rc = spi->trx(inst->spi, inst->cs, xbuf, xbuf, 1);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot set bulk erase!\n", __func__);
 		return -1;
@@ -486,19 +503,22 @@ int m25pxx_chiperase(struct m25pxxflash_t *inst,
 		    __func__,
 		    xbuf[0], inst->flash_detected->bulktime / 64, cnt);
 		cnt--;
-		percent = (cntx - cnt) / (cntx / 100);
+		percent = (cntx - cnt) / (cntx >= 100 ? (cntx / 100) : 1);
 		if (percent != 0 && percentx != percent) {
 			percentx = percent;
 			if (progress)
-				progress->fct(progress->arg, percent);
+				progress->fct(progress->arg, percent, 0);
 		}
 	} while ((xbuf[0] & 0x1) == 0x1 && cnt > 0);
 
 	if ((xbuf[0] & 0x1) != 0)
 		return -1;
 
-	if (progress)
-		progress->fct(progress->arg, 100);
+	if (progress) {
+		while (percent++ < 99)
+			progress->fct(progress->arg, percent, 1);
+		progress->fct(progress->arg, 100, 0);
+	}
 
 	return 0;
 }
@@ -522,10 +542,10 @@ int m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
 	}
 
 	if (progress)
-		progress->fct(progress->arg, 0);
+		progress->fct(progress->arg, 0, 0);
 
 	xbuf[0] = 0x06;	/* write enable */
-	rc = spi->trx(inst->spi, xbuf, xbuf, 1);
+	rc = spi->trx(inst->spi, inst->cs, xbuf, xbuf, 1);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot set write enable!\n", __func__);
 		return -1;
@@ -535,7 +555,7 @@ int m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
 	xbuf[1] = (addr & 0x00FF0000) >> 16;
 	xbuf[2] = (addr & 0x0000FF00) >> 8;
 	xbuf[3] = (addr & 0x000000FF) >> 0;
-	rc = spi->trx(inst->spi, xbuf, xbuf, 4);
+	rc = spi->trx(inst->spi, inst->cs, xbuf, xbuf, 4);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot set sector erase!\n", __func__);
 		return -1;
@@ -553,20 +573,23 @@ int m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
 		    __func__,
 		    xbuf[0], inst->flash_detected->sectortime / 64, cnt);
 		cnt--;
-		percent = (cntx - cnt) / (cntx / 100);
+		percent = (cntx - cnt) / (cntx >= 100 ? (cntx / 100) : 1);
 		if (percent != 0 && percentx != percent) {
 			percentx = percent;
 			if (progress)
-				progress->fct(progress->arg, percent);
+				progress->fct(progress->arg, percent, 0);
 		}
 	} while ((xbuf[0] & 0x1) == 0x1 && cnt > 0);
 
 	if ((xbuf[0] & 0x1) != 0)
 		return -1;
 
-	if (progress)
-		progress->fct(progress->arg, 100);
 
+	if (progress) {
+		while (percent++ < 99)
+			progress->fct(progress->arg, percent, 1);
+		progress->fct(progress->arg, 100, 0);
+	}
 	return 0;
 }
 
@@ -578,7 +601,7 @@ static int m25pxx_progpage(struct m25pxxflash_t *inst,
 	int rc;
 
 	inst->xbuf[0] = 0x06;	/* write enable */
-	rc = spi->trx(inst->spi, inst->xbuf, inst->xbuf, 1);
+	rc = spi->trx(inst->spi, inst->cs, inst->xbuf, inst->xbuf, 1);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot set write enable!\n", __func__);
 		return -1;
@@ -589,7 +612,7 @@ static int m25pxx_progpage(struct m25pxxflash_t *inst,
 	inst->xbuf[2] = (addr & 0x0000FF00) >> 8;
 	inst->xbuf[3] = (addr & 0x000000FF) >> 0;
 	memcpy(&inst->xbuf[4], src, size);
-	rc = spi->trx(inst->spi, inst->xbuf, inst->xbuf, size + 4);
+	rc = spi->trx(inst->spi, inst->cs, inst->xbuf, inst->xbuf, size + 4);
 	if (rc != 0) {
 		fprintf(stderr, "%s: cannot set page program!\n", __func__);
 		return -1;
@@ -622,7 +645,7 @@ int m25pxx_program(struct m25pxxflash_t *inst,
 	size_t prog;
 	uint8_t status;
 	size_t size_x = size;
-	unsigned int percent;
+	unsigned int percent, percentx = 0;
 
 	if (inst == NULL)
 		return -1;
@@ -645,7 +668,7 @@ int m25pxx_program(struct m25pxxflash_t *inst,
 	}
 
 	if (progress)
-		progress->fct(progress->arg, 0);
+		progress->fct(progress->arg, 0, 0);
 
 	if (status & 0x1C) {
 		fprintf(stderr,
@@ -655,22 +678,23 @@ int m25pxx_program(struct m25pxxflash_t *inst,
 
 	while (size) {
 		if (progress) {
-			percent = (size_x - size) / (size_x / 100);
-			if (progress->intervall && percent != 0 &&
-			    (size % progress->intervall) == 0) {
-				progress->fct(progress->arg, percent);
+			percent = (size_x - size) /
+				  (size_x >= 100 ? (size_x / 100) : 1);
+			if (percent != 0 && percentx != percent) {
+				percentx = percent;
+				progress->fct(progress->arg, percent, 0);
 			}
 		}
 		prog = size > inst->flash_detected->pagesize ?
 			      inst->flash_detected->pagesize : size;
 
-		memset(inst->xbuf, 0xFF, size);
+		memset(inst->xbuf, 0xFF, inst->flash_detected->pagesize);
 
-		if (memcmp(src, inst->xbuf, size) == 0) {
+		if (memcmp(src, inst->xbuf, prog) == 0) {
 			DBG("%s: skip page @ 0x%x\n", __func__, addr);
-			src += inst->flash_detected->pagesize;
-			addr += inst->flash_detected->pagesize;
-			size -= inst->flash_detected->pagesize;
+			src += prog;
+			addr += prog;
+			size -= prog;
 			continue;
 		}
 		rc = m25pxx_progpage(inst, src, addr, prog);
@@ -683,8 +707,9 @@ int m25pxx_program(struct m25pxxflash_t *inst,
 		addr += prog;
 		size -= prog;
 	}
-	if (progress)
-		progress->fct(progress->arg, 100);
+
+	if (progress && percent != 100)
+		progress->fct(progress->arg, 100, 0);
 
 	return 0;
 }

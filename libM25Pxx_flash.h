@@ -31,15 +31,14 @@ struct m25pxxflash_t {
 	struct flashparam_t	*flash_detected;
 
 	struct spihw_t		*spi;
-
+	unsigned int		cs;
 	uint8_t			*xbuf;
 	size_t			xbufsize;
 };
 
 struct m25pxx_progress_t {
-	void (*fct)(void *arg, unsigned int prcnt_done);
+	void (*fct)(void *arg, unsigned int prcnt_done, unsigned int flag);
 	void *arg;
-	size_t intervall;
 };
 
 void m25pxxflash_destroy(struct m25pxxflash_t *inst);

@@ -13,17 +13,20 @@
 struct spihw_t {
 	FT_HANDLE		fthandle;
 	struct ftdi_funcptr_t	*ftdifunc;
-	uint8_t			portstate;
+	unsigned int		speed;
+	unsigned int		mode;
+	void			*priv;
 	struct spiops_t		*ops;
 };
 
 struct spiops_t {
-	int (*trx)(struct spihw_t *spi,
+	int (*claim)(struct spihw_t *spi);
+	int (*release)(struct spihw_t *spi);
+	int (*trx)(struct spihw_t *spi, unsigned int cs,
 		   uint8_t *out, uint8_t *in, size_t size);
 	int (*set_speed_mode)(struct spihw_t *spi,
 			      unsigned int speed, unsigned int mode);
 	int (*set_port)(struct spihw_t *spi, uint8_t port);
-	int (*set_cs)(struct spihw_t *spi, unsigned int cs);
 };
 
 #endif /* __SPIHW_H__ */

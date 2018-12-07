@@ -27,7 +27,7 @@
 				  ALTUSB_BIT_nCE |\
 				  ALTUSB_BIT_nCONFIG) & ALTUSB_DMASK)
 
-#define FTDI_TIMEOUT		1250
+#define FTDI_TIMEOUT		2000
 #define FTDI_LATENCY		1
 
 static const uint8_t bitreverse[256] = {
@@ -65,9 +65,10 @@ static const uint8_t bitreverse[256] = {
 	0x1F, 0x9F, 0x5F, 0xDF, 0x3F, 0xBF, 0x7F, 0xFF,
 };
 
-static int spi_trx(struct spihw_t *spi,
+static int spi_trx(struct spihw_t *spi, unsigned int cs,
 		   uint8_t *out, uint8_t *in, size_t size)
 {
+	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
 	uint8_t xbuf[0x10000] = { 0 };
 
 	FT_STATUS rc;
@@ -75,13 +76,19 @@ static int spi_trx(struct spihw_t *spi,
 
 	unsigned int bufsize, blksize, payloadsize, trxsize;
 
+	if (cs > 0) {
+		fprintf(stderr,
+			"%s: cs %d out of range (0..0).\n",
+			__func__, cs);
+		return -1;
+	}
+
 	bufsize = 0;
 	payloadsize = 0;
 
 	/* assert chipselect */
-	spi->portstate &= ~ALTUSB_BIT_nCS;
-	spi->portstate |= ALTUSB_BIT_LED;
-	xbuf[bufsize++] = spi->portstate;
+	priv->portstate &= ~ALTUSB_BIT_nCS;
+	xbuf[bufsize++] = priv->portstate;
 
 	while (size) {
 		blksize = size;
@@ -99,9 +106,8 @@ static int spi_trx(struct spihw_t *spi,
 			}
 			/* de-assert chipselect */
 			if ((size - payloadsize) == 0) {
-				spi->portstate |= ALTUSB_BIT_nCS;
-				spi->portstate &= ~ALTUSB_BIT_LED;
-				xbuf[bufsize++] = spi->portstate;
+				priv->portstate |= ALTUSB_BIT_nCS;
+				xbuf[bufsize++] = priv->portstate;
 			}
 		}
 		/* start transfer */
@@ -146,7 +152,9 @@ static int spi_trx(struct spihw_t *spi,
 
 static int spi_setport(struct spihw_t *spi, uint8_t port)
 {
-	spi->portstate = port;
+	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
+
+	priv->portstate = port;
 
 	return 0;
 }
@@ -154,22 +162,69 @@ static int spi_setport(struct spihw_t *spi, uint8_t port)
 static int spi_setspeedmode(struct spihw_t *spi,
 			    unsigned int speed, unsigned int mode)
 {
-	return -1;
-}
-
-static int spi_setcs(struct spihw_t *spi, unsigned int cs)
-{
-	if (cs != 0)
-		return -1;
-
+	printf("WARN: Alera USB-Blaster runs fixed at 6MHz, and mode 1!\n");
 	return 0;
 }
 
+static int spi_claim(struct spihw_t *spi)
+{
+	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
+	int rc;
+	DWORD written;
+
+	priv->portstate |= ALTUSB_BIT_LED;
+
+	/* start transfer */
+	rc = spi->ftdifunc->write(spi->fthandle,
+				  &priv->portstate, 1, &written);
+	if (rc != FT_OK) {
+		fprintf(stderr,
+			"%s: write to FT245 failed!\n", __func__);
+
+		return -1;
+	} else if (written != 1) {
+		fprintf(stderr,
+			"%s: failed to write fifo %d != %d\n",
+			__func__, written, 1);
+
+		return -1;
+	}
+	return 0;
+}
+
+static int spi_release(struct spihw_t *spi)
+{
+	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
+	int rc;
+	DWORD written;
+
+	priv->portstate &= ~ALTUSB_BIT_LED;
+
+	/* start transfer */
+	rc = spi->ftdifunc->write(spi->fthandle,
+				  &priv->portstate, 1, &written);
+	if (rc != FT_OK) {
+		fprintf(stderr,
+			"%s: write to FT245 failed!\n", __func__);
+
+		return -1;
+	} else if (written != 1) {
+		fprintf(stderr,
+			"%s: failed to write fifo %d != %d\n",
+			__func__, written, 1);
+
+		return -1;
+	}
+	return 0;
+}
+
+
 static const struct spiops_t ops = {
 	.trx = &spi_trx,
+	.claim = &spi_claim,
+	.release = &spi_release,
 	.set_port = spi_setport,
 	.set_speed_mode = spi_setspeedmode,
-	.set_cs = spi_setcs,
 };
 
 void altusb_destroy(struct spihw_t *spi)
@@ -187,6 +242,9 @@ void altusb_destroy(struct spihw_t *spi)
 				"%s: cannot reset USB-Blaster!\n", __func__);
 		spi->ftdifunc->close(spi->fthandle);
 	}
+	if (spi->priv != NULL)
+		free(spi->priv);
+
 	ftdi_destroy(spi->ftdifunc);
 	free(spi);
 }
@@ -194,10 +252,11 @@ void altusb_destroy(struct spihw_t *spi)
 struct spihw_t *altusb_create(unsigned int ftdi_devidx)
 {
 	struct spihw_t *spi;
+	struct altusb_priv_t *priv;
 	FT_STATUS rc;
 
 	uint8_t xbuf[256];
-	DWORD written;
+	DWORD written, readbytes;
 
 	spi = calloc(1, sizeof(*spi));
 	if (spi == NULL) {
@@ -208,7 +267,17 @@ struct spihw_t *altusb_create(unsigned int ftdi_devidx)
 		return NULL;
 	}
 
-	spi->portstate = DEFAULT_PORTSTATE;
+	spi->priv = calloc(1, sizeof(struct altusb_priv_t));
+	if (spi->priv == NULL) {
+		fprintf(stderr,
+			"%s: no memory for creating hpm-blaster priv!\n",
+			__func__);
+		free(spi);
+		return NULL;
+	}
+	priv = (struct altusb_priv_t *)spi->priv;
+
+	priv->portstate = DEFAULT_PORTSTATE;
 
 	spi->ops = (struct spiops_t *)&ops;
 
@@ -226,6 +295,29 @@ struct spihw_t *altusb_create(unsigned int ftdi_devidx)
 			fprintf(stderr,
 				"%s: cannot open dev #%d, doesn't exist? permissions?\n",
 				__func__, ftdi_devidx);
+			break;
+		}
+		/* test for valid description string */
+		rc = spi->ftdifunc->get_deviceinfo(spi->fthandle,
+						   NULL, NULL,
+						   NULL, xbuf, NULL);
+		if (rc != FT_OK) {
+			fprintf(stderr,
+				"%s: cannot querry device info string!\n",
+				__func__);
+			break;
+		}
+		if (strcmp(xbuf, "USB-Blaster") != 0) {
+			fprintf(stderr,
+				"device description '%s' doesn't match '%s'.\n",
+				xbuf, "USB-Blaster");
+			break;
+		}
+		/* reset FTDI device */
+		rc = spi->ftdifunc->reset(spi->fthandle);
+		if (rc != FT_OK) {
+			fprintf(stderr,
+				"%s: cannot reset device.\n", __func__);
 			break;
 		}
 		/* setup timeouts for usb-transfers */
@@ -246,12 +338,36 @@ struct spihw_t *altusb_create(unsigned int ftdi_devidx)
 
 		//spi->ftdifunc->set_usbpar(spi->fthandle, 512, 512);
 		/* reset usb-blaster cpld statemachine */
-		memset(xbuf, spi->portstate, sizeof(xbuf));
+		memset(xbuf, priv->portstate, sizeof(xbuf));
 		rc = spi->ftdifunc->write(spi->fthandle,
 					  xbuf, sizeof(xbuf), &written);
 		if (rc != FT_OK) {
 			fprintf(stderr,
 				"%s:cannot reset USB-Blaster!\n", __func__);
+			break;
+		}
+
+		/* simple test if the attached ftdi acts like usb blaster */
+		xbuf[0] = ALTUSB_READ;
+		rc = spi->ftdifunc->write(spi->fthandle,
+					  xbuf, 1, &written);
+		if (rc != FT_OK) {
+			fprintf(stderr,
+				"%s: cannot write to FT245!\n", __func__);
+			break;
+		}
+		rc = spi->ftdifunc->read(spi->fthandle,
+					 xbuf, 1, &readbytes);
+
+		if (rc != FT_OK) {
+			fprintf(stderr,
+				"%s: read from FT245 failed!\n", __func__);
+
+			break;
+		} else if (readbytes != 1) {
+			fprintf(stderr,
+				"%s: cannot probe Altera USB-Blaster!\n",
+				__func__);
 			break;
 		}
 

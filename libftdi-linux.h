@@ -27,7 +27,7 @@ struct ftdi_funcptr_t {
 	FT_STATUS(*set_timeout) \
 		(FT_HANDLE handle, DWORD readtimeout, DWORD writetimeout);
 	FT_STATUS(*set_latency)(FT_HANDLE handle, DWORD time);
-	FT_STATUS(*set_bitmode)(UCHAR mask, UCHAR mode);
+	FT_STATUS(*set_bitmode)(FT_HANDLE handle, UCHAR mask, UCHAR mode);
 	FT_STATUS(*get_queuestat)(FT_HANDLE handle, LPDWORD pavail);
 	FT_STATUS(*get_stat)(FT_HANDLE handle, \
 			LPDWORD rxqueue, LPDWORD txqueue, LPDWORD eventstatus);
@@ -40,6 +40,10 @@ struct ftdi_funcptr_t {
 		 FT_DEVICE * pdev, LPDWORD devid, \
 		 PCHAR serial, PCHAR description, LPVOID dummy);
 	FT_STATUS(*set_vidpid)(DWORD vid, DWORD pid);
+	FT_STATUS(*set_flowctrl) \
+		(FT_HANDLE handle,
+		 USHORT flowcontrol,
+		 UCHAR xon, UCHAR xoff);
 	void *libftdi;
 };
 

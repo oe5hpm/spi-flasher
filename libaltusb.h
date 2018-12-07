@@ -11,6 +11,10 @@
 #include <libftdi.h>
 #include <spihw.h>
 
+struct altusb_priv_t {
+	uint8_t			portstate;
+};
+
 void altusb_destroy(struct spihw_t *spi);
 struct spihw_t *altusb_create(unsigned int ftdi_devidx);
 

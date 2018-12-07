@@ -7,11 +7,14 @@
 CC=$(CROSS_COMPILE)gcc
 AR=$(CROSS_COMPILE)ar
 
-OBJS=ftdi-spitest.o
-TARGET=ftdi-spitest
-CFLAGS=-Wunused -I.
+GIT_VERSION := $(shell (git describe --abbrev=4 --dirty --always --tags || \
+			echo "?????") | sed s/-dirty/D/)
+
+OBJS=hpmflash.o
+TARGET=hpmflash
+CFLAGS=-Wunused -I. -DGITVERSION=\"$(GIT_VERSION)\"
 LFLAGS=-ldl
-LIBS=libM25Pxx_flash.a libftdi-linux.a libaltusb.a
+LIBS=libM25Pxx_flash.a libftdi-linux.a libaltusb.a libhpmusb.a
 SOURCES=$(shell ls *.h *.c)
 
 all: $(TARGET)

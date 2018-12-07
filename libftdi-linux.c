@@ -30,6 +30,7 @@ static char *ftdi_symbols[] = {
 	"FT_Write",
 	"FT_GetDeviceInfo",
 	"FT_SetVIDPID",
+	"FT_SetFlowControl",
 	NULL,
 
 };

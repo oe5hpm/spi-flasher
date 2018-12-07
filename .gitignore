@@ -1,4 +1,6 @@
-ftdi-spitest
+hpmflash
 *.o
 *.a
-
+*.bin
+*.rbf
+*.sh
