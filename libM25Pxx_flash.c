@@ -691,17 +691,15 @@ int m25pxx_program(struct m25pxxflash_t *inst,
 		memset(inst->xbuf, 0xFF, inst->flash_detected->pagesize);
 
 		if (memcmp(src, inst->xbuf, prog) == 0) {
-			DBG("%s: skip page @ 0x%x\n", __func__, addr);
-			src += prog;
-			addr += prog;
-			size -= prog;
-			continue;
-		}
-		rc = m25pxx_progpage(inst, src, addr, prog);
-		if (rc != 0) {
-			fprintf(stderr, "%s: cannot program page @ 0x%x\n",
-				__func__, addr);
-			return -1;
+			DBG("%s: skip empty page @ 0x%x\n", __func__, addr);
+		} else {
+			rc = m25pxx_progpage(inst, src, addr, prog);
+			if (rc != 0) {
+				fprintf(stderr,
+					"%s: cannot program page @ 0x%x\n",
+					__func__, addr);
+				return -1;
+			}
 		}
 		src += prog;
 		addr += prog;
