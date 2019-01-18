@@ -7,8 +7,20 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <dlfcn.h>
-#include "libftdi-linux.h"
+#ifdef __linux__
+# include <dlfcn.h>
+# define LIBNAME		"libftd2xx.so"
+#elif __MINGW32__
+# include <windows.h>
+#ifdef _WIN32_
+#  define LIBNAME		"ftd2xx.dll"
+#else
+#  define LIBNAME		"ftd2xx64.dll"
+#endif
+#else
+# error "unsupported platform !"
+#endif
+#include "libftdi.h"
 
 /* FTDI shared library */
 static char *ftdi_symbols[] = {
@@ -29,8 +41,10 @@ static char *ftdi_symbols[] = {
 	"FT_Read",
 	"FT_Write",
 	"FT_GetDeviceInfo",
-	"FT_SetVIDPID",
 	"FT_SetFlowControl",
+#ifndef __MINGW32__
+	"FT_SetVIDPID",
+#endif
 	NULL,
 
 };
@@ -38,8 +52,11 @@ static char *ftdi_symbols[] = {
 void ftdi_destroy(struct ftdi_funcptr_t *inst)
 {
 	if (inst->libftdi != NULL)
+#ifdef __linux__
 		dlclose(inst->libftdi);
-
+#else
+		FreeLibrary(inst->libftdi);
+#endif
 	free(inst);
 }
 
@@ -58,10 +75,14 @@ struct ftdi_funcptr_t *ftdi_create(void)
 	}
 
 	/* open the shared ftdi lib */
-	pfunc->libftdi = dlopen("libftd2xx.so", RTLD_LAZY);
+#ifdef __linux__
+	pfunc->libftdi = dlopen(LIBNAME, RTLD_LAZY);
+#else
+	pfunc->libftdi = LoadLibrary(LIBNAME);
+#endif
 	if (pfunc->libftdi == NULL) {
 		fprintf(stderr,
-			"%s: cannot access libftd2xx.so!\n", __func__);
+			"%s: cannot access %s!\n", __func__, LIBNAME);
 		ftdi_destroy(pfunc);
 
 		return NULL;
@@ -70,7 +91,12 @@ struct ftdi_funcptr_t *ftdi_create(void)
 	ppfunc = (void *)pfunc;
 	do {
 		while (ftdi_symbols[i] != NULL) {
+#ifdef __linux
 			*ppfunc = dlsym(pfunc->libftdi, ftdi_symbols[i]);
+#else
+			*ppfunc = GetProcAddress(pfunc->libftdi,
+						 ftdi_symbols[i]);
+#endif
 			if (*ppfunc == NULL) {
 				fprintf(stderr,
 					"%s: error get symbol '%s' from libftdi!\n",

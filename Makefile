@@ -14,8 +14,15 @@ OBJS=hpmflash.o
 TARGET=hpmflash
 CFLAGS=-Wunused -I. -DGITVERSION=\"$(GIT_VERSION)\"
 LFLAGS=-ldl
-LIBS=libM25Pxx_flash.a libftdi-linux.a libaltusb.a libhpmusb.a
+LIBS=libM25Pxx_flash.a libftdi.a libaltusb.a libhpmusb.a
 SOURCES=$(shell ls *.h *.c)
+
+ifeq ($(CROSS_COMPILE),x86_64-w64-mingw32-)
+	CFLAGS += $(shell echo $(CROSS_COMPILE) | \
+		    grep -c "\-w32">/dev/null && echo -D_WIN32_)
+	LFLAGS :=
+	TARGET := $(TARGET)64.exe
+endif
 
 all: $(TARGET)
 
@@ -37,4 +44,4 @@ check:
 	$(foreach f,$(SOURCES),scripts/check.sh $(f);)
 
 clean:
-	@rm -f $(LIBS) *.o $(TARGET)
+	@rm -f $(LIBS) *.o $(TARGET) *.exe

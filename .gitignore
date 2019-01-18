@@ -4,3 +4,4 @@ hpmflash
 *.bin
 *.rbf
 *.sh
+/hpmflash64.exe

@@ -211,12 +211,14 @@ int main(int argc, char **argv)
 	}
 
 	/* add the altera usb-blaster to ftdi device list */
+#ifndef __MINGW32__
 	rc = ftdifunc->set_vidpid(0x09fb, 0x6001);
 	if (rc != FT_OK) {
 		printf("cannot add 0x09fb:6001 to ftdi devs!\n");
 		ret = -1;
 		goto out;
 	}
+#endif
 
 	/* check for available FTDI devices */
 	rc = ftdifunc->createdevlist(&numdevs);
