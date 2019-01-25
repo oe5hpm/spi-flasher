@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 
 	/* FTDI stuff */
 	struct ftdi_funcptr_t *ftdifunc = NULL;
-	DWORD numdevs;
+	DWORD numdevs = 0;
 	FT_STATUS rc;
 	FT_DEVICE_LIST_INFO_NODE *devinfo_base, *devinfo;
 
@@ -239,6 +239,11 @@ int main(int argc, char **argv)
 	}
 	if (numdevs == 0) {
 		fprintf(stderr, "no FTDI devices available!\n");
+		ret = -1;
+		goto out;
+	} else if (numdevs > 20) {
+		fprintf(stderr,
+			"nobody in this world has more than 20 FTDI-devices!\n");
 		ret = -1;
 		goto out;
 	}
