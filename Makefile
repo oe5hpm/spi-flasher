@@ -10,6 +10,8 @@ AR=$(CROSS_COMPILE)ar
 GIT_VERSION := $(shell (git describe --abbrev=4 --dirty --always --tags || \
 			echo "?????") | sed s/-dirty/D/)
 
+WINDOWS_COMPILE := $(shell echo $(CROSS_COMPILE) | grep -c mingw32)
+
 OBJS=hpmflash.o
 TARGET=hpmflash
 CFLAGS=-Wunused -I. -DGITVERSION=\"$(GIT_VERSION)\"
@@ -17,7 +19,7 @@ LFLAGS=-ldl
 LIBS=libM25Pxx_flash.a libftdi.a libaltusb.a libhpmusb.a m25pxx_usbdev.a
 SOURCES=$(shell ls *.h *.c)
 
-ifeq ($(CROSS_COMPILE),x86_64-w64-mingw32-)
+ifeq ($(WINDOWS_COMPILE),1)
 	CFLAGS += $(shell echo $(CROSS_COMPILE) | \
 		    grep -c "\-w32">/dev/null && echo -D_WIN32_)
 	LFLAGS :=
