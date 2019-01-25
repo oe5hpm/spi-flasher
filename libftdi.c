@@ -62,6 +62,7 @@ struct ftdi_funcptr_t *ftdi_create(void)
 	void **ppfunc;
 	char *libname = "ftdi-null-lib";
 	unsigned int i;
+	unsigned int errorcode = 0;
 
 	pfunc = calloc(1, sizeof(struct ftdi_funcptr_t));
 	if (pfunc == NULL) {
@@ -88,8 +89,12 @@ struct ftdi_funcptr_t *ftdi_create(void)
 	pfunc->libftdi = LoadLibrary(libname);
 #endif
 	if (pfunc->libftdi == NULL) {
+#ifdef __MINGW32__
+		errorcode = GetLastError();
+#endif
 		fprintf(stderr,
-			"%s: cannot access %s!\n", __func__, libname);
+			"%s: cannot access %s (err=%d)!\n",
+			__func__, libname, errorcode);
 		ftdi_destroy(pfunc);
 
 		return NULL;
