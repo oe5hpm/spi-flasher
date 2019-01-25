@@ -14,7 +14,7 @@ OBJS=hpmflash.o
 TARGET=hpmflash
 CFLAGS=-Wunused -I. -DGITVERSION=\"$(GIT_VERSION)\"
 LFLAGS=-ldl
-LIBS=libM25Pxx_flash.a libftdi.a libaltusb.a libhpmusb.a
+LIBS=libM25Pxx_flash.a libftdi.a libaltusb.a libhpmusb.a m25pxx_usbdev.a
 SOURCES=$(shell ls *.h *.c)
 
 ifeq ($(CROSS_COMPILE),x86_64-w64-mingw32-)
@@ -25,6 +25,10 @@ ifeq ($(CROSS_COMPILE),x86_64-w64-mingw32-)
 endif
 
 all: $(TARGET)
+
+m25pxx_usbdev.dll: libM25Pxx_flash.a libftdi.a libaltusb.a libhpmusb.a m25pxx_usbdev.o
+	@echo [createDLL] $@
+	@$(CC) -shared -o $@ $<
 
 %.a: %.o
 	@echo [ gen-lib ] $@

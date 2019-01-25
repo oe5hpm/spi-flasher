@@ -9,6 +9,13 @@
 #include <stdint.h>
 #include <spihw.h>
 
+#ifdef __MINGW32__
+#include <windows.h>
+#define DLLEXPORT	__declspec(dllexport)
+#else
+#define DLLEXPORT
+#endif
+
 struct flashparam_t {
 	uint8_t		type;
 	char		name[12];
@@ -43,16 +50,16 @@ struct m25pxx_progress_t {
 
 void m25pxxflash_destroy(struct m25pxxflash_t *inst);
 struct m25pxxflash_t *m25pxxflash_create(struct spihw_t *spi);
-int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs);
-int m25pxx_rdsr(struct m25pxxflash_t *inst, uint8_t *reg);
-int m25pxx_wrsr(struct m25pxxflash_t *inst, uint8_t reg);
-int m25pxx_read(struct m25pxxflash_t *inst,
-		void *dst, uint32_t addr, size_t size);
-int m25pxx_program(struct m25pxxflash_t *inst,
-		   void *src, uint32_t addr, size_t size,
+int DLLEXPORT m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs);
+int DLLEXPORT m25pxx_rdsr(struct m25pxxflash_t *inst, uint8_t *reg);
+int DLLEXPORT m25pxx_wrsr(struct m25pxxflash_t *inst, uint8_t reg);
+int DLLEXPORT m25pxx_read(struct m25pxxflash_t *inst,
+			  void *dst, uint32_t addr, size_t size);
+int DLLEXPORT m25pxx_program(struct m25pxxflash_t *inst,
+			     void *src, uint32_t addr, size_t size,
 		   struct m25pxx_progress_t *progress);
-void m25pxx_printflash(struct flashparam_t *pflash);
-int m25pxx_chiperase(struct m25pxxflash_t *inst,
-		     struct m25pxx_progress_t *progress);
-int m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
-		       struct m25pxx_progress_t *progress);
+void DLLEXPORT m25pxx_printflash(struct flashparam_t *pflash);
+int DLLEXPORT m25pxx_chiperase(struct m25pxxflash_t *inst,
+			       struct m25pxx_progress_t *progress);
+int DLLEXPORT m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
+				 struct m25pxx_progress_t *progress);

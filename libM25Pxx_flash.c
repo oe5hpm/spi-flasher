@@ -294,7 +294,7 @@ static struct flashparam_t *m25pxx_search(struct flashparam_t *ptab,
 	return NULL;
 }
 
-int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
+int DLLEXPORT m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 {
 	struct spiops_t *spi = inst->spi->ops;
 	int rc;
@@ -372,8 +372,8 @@ int m25pxx_detect(struct m25pxxflash_t *inst, uint8_t cs)
 	return 0;
 }
 
-int m25pxx_read(struct m25pxxflash_t *inst,
-		void *dst, uint32_t addr, size_t size)
+int DLLEXPORT m25pxx_read(struct m25pxxflash_t *inst,
+			  void *dst, uint32_t addr, size_t size)
 {
 	struct spiops_t *spi = inst->spi->ops;
 	int rc;
@@ -414,7 +414,7 @@ int m25pxx_read(struct m25pxxflash_t *inst,
 	return 0;
 }
 
-int m25pxx_rdsr(struct m25pxxflash_t *inst, uint8_t *reg)
+int DLLEXPORT m25pxx_rdsr(struct m25pxxflash_t *inst, uint8_t *reg)
 {
 	struct spiops_t *spi = inst->spi->ops;
 	uint8_t xbuf[2] = { 0x05, 0x00 };
@@ -437,7 +437,7 @@ int m25pxx_rdsr(struct m25pxxflash_t *inst, uint8_t *reg)
 }
 
 
-int m25pxx_wdsr(struct m25pxxflash_t *inst, uint8_t reg)
+int DLLEXPORT m25pxx_wdsr(struct m25pxxflash_t *inst, uint8_t reg)
 {
 	struct spiops_t *spi = inst->spi->ops;
 	uint8_t xbuf[2] = { 0x01, reg };
@@ -456,8 +456,8 @@ int m25pxx_wdsr(struct m25pxxflash_t *inst, uint8_t reg)
 	return 0;
 }
 
-int m25pxx_chiperase(struct m25pxxflash_t *inst,
-		     struct m25pxx_progress_t *progress)
+int DLLEXPORT m25pxx_chiperase(struct m25pxxflash_t *inst,
+			       struct m25pxx_progress_t *progress)
 {
 	struct spiops_t *spi = inst->spi->ops;
 	uint8_t xbuf[4] = { 0 };
@@ -523,8 +523,8 @@ int m25pxx_chiperase(struct m25pxxflash_t *inst,
 	return 0;
 }
 
-int m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
-		      struct m25pxx_progress_t *progress)
+int DLLEXPORT m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
+				 struct m25pxx_progress_t *progress)
 {
 	struct spiops_t *spi = inst->spi->ops;
 	uint8_t xbuf[4] = { 0 };
@@ -637,9 +637,9 @@ static int m25pxx_progpage(struct m25pxxflash_t *inst,
 	return 0;
 }
 
-int m25pxx_program(struct m25pxxflash_t *inst,
-		   void *src, uint32_t addr, size_t size,
-		   struct m25pxx_progress_t *progress)
+int DLLEXPORT m25pxx_program(struct m25pxxflash_t *inst,
+			     void *src, uint32_t addr, size_t size,
+			     struct m25pxx_progress_t *progress)
 {
 	int rc;
 	size_t prog;
@@ -712,7 +712,7 @@ int m25pxx_program(struct m25pxxflash_t *inst,
 	return 0;
 }
 
-void m25pxx_printflash(struct flashparam_t *pflash)
+void DLLEXPORT m25pxx_printflash(struct flashparam_t *pflash)
 {
 	if (pflash == NULL)
 		return;
