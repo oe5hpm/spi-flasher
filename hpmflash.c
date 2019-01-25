@@ -531,9 +531,6 @@ int main(int argc, char **argv)
 	}
 
 out:
-	if (devname != NULL)
-		free(devname);
-
 	if (filename != NULL)
 		free(filename);
 
@@ -551,6 +548,9 @@ out:
 		else if (strcmp(devname, "Quad RS232-HS A") == 0)
 			hpmusb_destroy(spihw);
 	}
+
+	if (devname != NULL)
+		free(devname);
 
 	if (ftdifunc != NULL)
 		ftdi_destroy(ftdifunc);
