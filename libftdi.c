@@ -7,16 +7,11 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+
 #ifdef __linux__
 # include <dlfcn.h>
-# define LIBNAME		"libftd2xx.so"
 #elif __MINGW32__
 # include <windows.h>
-#ifdef _WIN32_
-#  define LIBNAME		"ftd2xx.dll"
-#else
-#  define LIBNAME		"ftd2xx64.dll"
-#endif
 #else
 # error "unsupported platform !"
 #endif
@@ -65,6 +60,7 @@ struct ftdi_funcptr_t *ftdi_create(void)
 
 	struct ftdi_funcptr_t *pfunc;
 	void **ppfunc;
+	char *libname = "ftdi-null-lib";
 	unsigned int i;
 
 	pfunc = calloc(1, sizeof(struct ftdi_funcptr_t));
@@ -76,13 +72,24 @@ struct ftdi_funcptr_t *ftdi_create(void)
 
 	/* open the shared ftdi lib */
 #ifdef __linux__
-	pfunc->libftdi = dlopen(LIBNAME, RTLD_LAZY);
+	libname = "libftd2xx.so";
+	pfunc->libftdi = dlopen(libname, RTLD_LAZY);
 #else
-	pfunc->libftdi = LoadLibrary(LIBNAME);
+	SYSTEM_INFO sysinfo;
+	GetNativeSystemInfo(&sysinfo);
+
+	if (sysinfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL)
+		libname = "ftd2xx.dll";
+	else if (sysinfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64)
+		libname = "ftd2xx64.dll";
+	else
+		fprintf(stderr, "%s: unknown architecure!\n", __func__);
+
+	pfunc->libftdi = LoadLibrary(libname);
 #endif
 	if (pfunc->libftdi == NULL) {
 		fprintf(stderr,
-			"%s: cannot access %s!\n", __func__, LIBNAME);
+			"%s: cannot access %s!\n", __func__, libname);
 		ftdi_destroy(pfunc);
 
 		return NULL;
