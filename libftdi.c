@@ -76,7 +76,7 @@ struct ftdi_funcptr_t *ftdi_create(void)
 	libname = "libftd2xx.so";
 	pfunc->libftdi = dlopen(libname, RTLD_LAZY);
 #else
-	SYSTEM_INFO sysinfo;
+	SYSTEM_INFO sysinfo = { 0 };
 	GetNativeSystemInfo(&sysinfo);
 
 	if (sysinfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL)
