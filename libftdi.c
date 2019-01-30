@@ -36,10 +36,10 @@ static char *ftdi_symbols[] = {
 	"FT_Read",
 	"FT_Write",
 	"FT_GetDeviceInfo",
-	"FT_SetFlowControl",
 #ifndef __MINGW32__
 	"FT_SetVIDPID",
 #endif
+	"FT_SetFlowControl",
 	NULL,
 
 };
