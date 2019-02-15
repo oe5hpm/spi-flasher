@@ -315,20 +315,36 @@ int main(int argc, char **argv)
 	spihw->ops->claim(spihw);
 	spihw->ops->set_speed_mode(spihw, speed, 1);
 
-	rc = m25pxx_detect(flash, cs);
-	if (rc == 0) {
-		chip = flash->flash_detected;
-		printf("-----------------------------------------------\n");
-		printf("----- M25Pxx detect ok (%-16s) -----\n",
-		       flash->flash_detected->name);
-		m25pxx_printflash(flash->flash_detected);
+	rc = -1;
+	i = 0;
+	printf("try with setting nCE low / TMS high.\n");
+	while (rc != 0 && i < 4) {
+		rc = m25pxx_detect(flash, cs);
+		if (rc == 0) {
+			chip = flash->flash_detected;
+			printf("-----------------------------------------------\n");
+			printf("----- M25Pxx detect ok (%-16s) -----\n",
+			       flash->flash_detected->name);
+			m25pxx_printflash(flash->flash_detected);
 
-		m25pxx_rdsr(flash, txtbuf);
-		printf("chip-status           : 0x%02x\n", txtbuf[0]);
-		printf("-----------------------------------------------\n");
-		if (detectonly == true)
-			goto out;
-	} else {
+			m25pxx_rdsr(flash, txtbuf);
+			printf("chip-status           : 0x%02x\n", txtbuf[0]);
+			printf("-----------------------------------------------\n");
+			if (detectonly == true)
+				goto out;
+		} else if (i == 0) {
+			printf("retry with setting nCE low / TMS low.\n");
+			spihw->ops->set_clr_tms(spihw, false);
+		} else if (i == 1) {
+			printf("retry with setting nCE high / TMS low.\n");
+			spihw->ops->set_clr_nce(spihw, true);
+		} else if (i == 2) {
+			printf("retry with setting nCE high / TMS high.\n");
+			spihw->ops->set_clr_tms(spihw, true);
+		}
+		i++;
+	}
+	if (rc != 0) {
 		printf("M25Pxx detect @ CS %d failed.\n", cs);
 		ret = -1;
 		goto out;
