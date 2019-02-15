@@ -150,17 +150,19 @@ static int spi_trx(struct spihw_t *spi, unsigned int cs,
 	return size;
 }
 
-static int spi_setport(struct spihw_t *spi, uint8_t port)
+
+static int set_clr_tms(struct spihw_t *spi, bool set_nclear)
 {
-	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
+	return -1;
+}
 
-	priv->portstate = port;
-
-	return 0;
+static int set_clr_nce(struct spihw_t *spi, bool set_nclear)
+{
+	return -1;
 }
 
 static int spi_setspeedmode(struct spihw_t *spi,
-			    unsigned int speed, unsigned int mode)
+			    unsigned int speed, int mode)
 {
 	printf("WARN: Alera USB-Blaster runs fixed at 6MHz, and mode 1!\n");
 	return 0;
@@ -223,7 +225,8 @@ static const struct spiops_t ops = {
 	.trx = &spi_trx,
 	.claim = &spi_claim,
 	.release = &spi_release,
-	.set_port = spi_setport,
+	.set_clr_tms = set_clr_tms,
+	.set_clr_nce = set_clr_nce,
 	.set_speed_mode = spi_setspeedmode,
 };
 

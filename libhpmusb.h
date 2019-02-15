@@ -13,6 +13,7 @@
 
 struct hpmusb_priv_t {
 	uint8_t		portstate;
+	uint8_t		fpga_cfg;
 	uint8_t		csmsk;
 	uint8_t		trxcmd;
 };

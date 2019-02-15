@@ -9,6 +9,7 @@
 #define __SPIHW_H__
 
 #include <ftd2xx.h>
+#include <stdbool.h>
 
 struct spihw_t {
 	FT_HANDLE		fthandle;
@@ -25,8 +26,9 @@ struct spiops_t {
 	int (*trx)(struct spihw_t *spi, unsigned int cs,
 		   uint8_t *out, uint8_t *in, size_t size);
 	int (*set_speed_mode)(struct spihw_t *spi,
-			      unsigned int speed, unsigned int mode);
-	int (*set_port)(struct spihw_t *spi, uint8_t port);
+			      unsigned int speed, int mode);
+	int (*set_clr_tms)(struct spihw_t *spi, bool set_nclear);
+	int (*set_clr_nce)(struct spihw_t *spi, bool set_nclear);
 };
 
 #endif /* __SPIHW_H__ */

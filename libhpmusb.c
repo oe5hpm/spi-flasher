@@ -171,17 +171,8 @@ static int spi_trx(struct spihw_t *spi, unsigned int cs,
 	return 0;
 }
 
-static int spi_setport(struct spihw_t *spi, uint8_t port)
-{
-	struct hpmusb_priv_t *priv = (struct hpmusb_priv_t *)spi->priv;
-
-	priv->portstate = port;
-
-	return 0;
-}
-
 static int spi_setspeedmode(struct spihw_t *spi,
-			    unsigned int speed, unsigned int mode)
+			    unsigned int speed, int mode)
 {
 	struct hpmusb_priv_t *priv = (struct hpmusb_priv_t *)spi->priv;
 	uint8_t xbuf[32] = { };
@@ -190,40 +181,44 @@ static int spi_setspeedmode(struct spihw_t *spi,
 	FT_STATUS rc;
 	DWORD writeb = 0, availb = 0;
 
-	if (mode == 2 || mode == 3) {
-		priv->portstate = 0xF9;
+	if (mode == -1) {
+	} else if (mode == 2 || mode == 3) {
+		priv->portstate |= 0x01; /* CLK high */
 		priv->trxcmd = 0x31;
+		spi->mode = mode;
 	} else if (mode == 0 || mode == 1) {
-		priv->portstate = 0xF8;
+		priv->portstate &= ~0x01; /* CLK-low */
 		priv->trxcmd = 0x31;
+		spi->mode = mode;
 	} else {
 		fprintf(stderr,
 			"%s: invalid mode %d.\n",
 			__func__, mode);
 		return -1;
 	}
-	spi->mode = mode;
 
-	if (speed <= 6000000) {
-		div = (6000000 / speed) - 1;
-		xbuf[i++] = 0x8B;	/* enable clock prescaler */
-	} else if (speed <= 30000000) {
-		div = (30000000 / speed) - 1;
-		if (speed < 30000000 && div == 0)
-			div = 1;
-		xbuf[i++] = 0x8A;	/* disable clock prescaler */
-	} else {
-		fprintf(stderr,
-			"%s: invalid speed %d.\n",
-			__func__, speed);
-		return -1;
+	if (speed != 0) {
+		if (speed <= 6000000) {
+			div = (6000000 / speed) - 1;
+			xbuf[i++] = 0x8B;	/* enable clock prescaler */
+		} else if (speed <= 30000000) {
+			div = (30000000 / speed) - 1;
+			if (speed < 30000000 && div == 0)
+				div = 1;
+			xbuf[i++] = 0x8A;	/* disable clock prescaler */
+		} else {
+			fprintf(stderr,
+				"%s: invalid speed %d.\n",
+				__func__, speed);
+			return -1;
+		}
+		spi->speed = speed;
+
+		/* setup clock divider */
+		xbuf[i++] = 0x86;
+		xbuf[i++] = div & 0xFF;
+		xbuf[i++] = (div & 0xFF00) >> 8;
 	}
-	spi->speed = speed;
-
-	/* setup clock divider */
-	xbuf[i++] = 0x86;
-	xbuf[i++] = div & 0xFF;
-	xbuf[i++] = (div & 0xFF00) >> 8;
 
 	/* setup GPIO port */
 	xbuf[i++] = 0x80;		/* setup port and drivers Bus A */
@@ -258,13 +253,58 @@ static int spi_setspeedmode(struct spihw_t *spi,
 	return 0;
 }
 
+static int set_clr_tms(struct spihw_t *spi, bool set_nclear)
+{
+	struct hpmusb_priv_t *priv = (struct hpmusb_priv_t *)spi->priv;
+
+	if (set_nclear == true)
+		priv->portstate |= 0x8;
+	else
+		priv->portstate &= ~0x8;
+
+	spi_setspeedmode(spi, 0, -1);
+
+	return 0;
+}
+
+static int set_clr_nce(struct spihw_t *spi, bool set_nclear)
+{
+	struct spiops_t *ops = spi->ops;
+	struct hpmusb_priv_t *priv = (struct hpmusb_priv_t *)spi->priv;
+	int rc;
+	uint8_t buf;
+
+	if (set_nclear == true)
+		priv->fpga_cfg |= 0x80;
+	else
+		priv->fpga_cfg &= ~0x80;
+
+	rc = ops->trx(spi, 2, &priv->fpga_cfg, &buf, 1);
+	if (rc != 0) {
+		fprintf(stderr,
+			"%s: FPGA setup failed!\n", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+
 static int spi_claim(struct spihw_t *spi)
 {
 	struct spiops_t *ops = spi->ops;
+	struct hpmusb_priv_t *priv = (struct hpmusb_priv_t *)spi->priv;
+	int rc;
 	uint8_t xbuf;
 
-	ops->set_speed_mode(spi, 6000000, 1);
+	priv->portstate = 0xF8;
 
+	rc = ops->set_speed_mode(spi, 6000000, 1);
+	if (rc != 0) {
+		fprintf(stderr,
+			"%s: set_speed_mode failed!\n", __func__);
+		return -1;
+	}
 	/*
 	 * Bit7 = 0 ... TGT_nCE
 	 * Bit6 = 0 ... assert target reset
@@ -275,22 +315,32 @@ static int spi_claim(struct spihw_t *spi)
 	 * Bit1 = 1 ... unused
 	 * Bit0 = 1 ... intflash is connected to SPI
 	 */
-	xbuf = 0xF;
+	priv->fpga_cfg = 0xF;
 
-	ops->trx(spi, 2, &xbuf, &xbuf, 1);
+	ops->trx(spi, 2, &priv->fpga_cfg, &xbuf, 1);
+	if (rc != 0) {
+		fprintf(stderr,
+			"%s: FPGA setup failed!\n", __func__);
+		return -1;
+	}
 
-	printf("%s: 0x%02x\n", __func__, xbuf);
+	printf("%s: FPGA-iostate 0x%02x\n", __func__, xbuf);
 
+	return 0;
 }
 
 static int spi_release(struct spihw_t *spi)
 {
 	struct spiops_t *ops = spi->ops;
+	struct hpmusb_priv_t *priv = (struct hpmusb_priv_t *)spi->priv;
 	uint8_t xbuf;
 
+	/* reset TMS to initial (high) state */
+	set_clr_tms(spi, true);
+
 	/* reset io-shiftregister */
-	xbuf = 0xFF;
-	return ops->trx(spi, 2, &xbuf, &xbuf, 1);
+	priv->fpga_cfg = 0xFF;
+	return ops->trx(spi, 2, &priv->fpga_cfg, &xbuf, 1);
 
 }
 
@@ -298,7 +348,8 @@ static const struct spiops_t ops = {
 	.trx = &spi_trx,
 	.claim = &spi_claim,
 	.release = &spi_release,
-	.set_port = spi_setport,
+	.set_clr_tms = set_clr_tms,
+	.set_clr_nce = set_clr_nce,
 	.set_speed_mode = spi_setspeedmode,
 };
 
