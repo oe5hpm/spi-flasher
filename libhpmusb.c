@@ -10,9 +10,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include <unistd.h>
 #include <ftd2xx.h>
 #include <libhpmusb.h>
+#include "osi.h"
 
 #define FTDI_TIMEOUT		2500
 #define FTDI_LATENCY		1
@@ -57,7 +57,7 @@ static int mpsse_probe(struct spihw_t *spi, bool retry, unsigned char probecmd)
 			return -1;
 		}
 		if (avail == 0) {
-			usleep(50 * 1000);
+			_usleep(50 * 1000);
 			i++;
 			continue;
 		} else if (avail > sizeof(xbuf)) {
@@ -86,7 +86,7 @@ static int mpsse_probe(struct spihw_t *spi, bool retry, unsigned char probecmd)
 			j++;
 			readb--;
 		}
-		usleep(10 * 1000);
+		_usleep(10 * 1000);
 		i++;
 	} while (i < 512);
 

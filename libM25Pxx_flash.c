@@ -9,9 +9,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
+
 #include <spihw.h>
 #include "libM25Pxx_flash.h"
+#include "osi.h"
 
 #ifdef DEBUG
 #define DBG(...) printf(__VA_ARGS__)
@@ -511,7 +512,7 @@ int DLLEXPORT m25pxx_chiperase(struct m25pxxflash_t *inst,
 	      (inst->flash_detected->bulktime / 64);
 	cntx = cnt;
 	do {
-		usleep(inst->flash_detected->bulktime / 64);
+		_usleep(inst->flash_detected->bulktime / 64);
 		rc = m25pxx_rdsr(inst, &xbuf[0]);
 		if (rc != 0)
 			return -1;
@@ -581,7 +582,7 @@ int DLLEXPORT m25pxx_sectorerase(struct m25pxxflash_t *inst, uint32_t addr,
 	      (inst->flash_detected->sectortime / 64);
 	cntx = cnt;
 	do {
-		usleep(inst->flash_detected->sectortime / 64);
+		_usleep(inst->flash_detected->sectortime / 64);
 		rc = m25pxx_rdsr(inst, &xbuf[0]);
 		if (rc != 0)
 			return -1;
@@ -637,7 +638,7 @@ static int m25pxx_progpage(struct m25pxxflash_t *inst,
 	cnt = inst->flash_detected->pagetime_max /
 	      (inst->flash_detected->pagetime / 8);
 	do {
-		usleep(inst->flash_detected->pagetime / 8);
+		_usleep(inst->flash_detected->pagetime / 8);
 		rc = m25pxx_rdsr(inst, &inst->xbuf[0]);
 		if (rc != 0)
 			return -1;
