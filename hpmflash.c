@@ -11,13 +11,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <getopt.h>
-#include <unistd.h>
-#include <sys/time.h>
 #include <libaltusb.h>
 #include <libhpmusb.h>
 #include <libftdi.h>
 #include <spihw.h>
 #include <libM25Pxx_flash.h>
+
+#include "osi.h"
 
 #ifndef GITVERSION
 #define GITVERSION "not a git build"
@@ -42,14 +42,6 @@
 #define ANSI_COLOR_CYAN    ""
 #define ANSI_COLOR_RESET   ""
 #endif
-
-uint64_t GetTimeStamp(void)
-{
-	struct timeval tv;
-
-	gettimeofday(&tv, NULL);
-	return tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
-}
 
 void flash_progress(void *arg, unsigned int percent, unsigned int flag)
 {
@@ -229,7 +221,6 @@ int main(int argc, char **argv)
 		goto out;
 	}
 #endif
-
 	/* check for available FTDI devices */
 	rc = ftdifunc->createdevlist(&numdevs);
 	if (rc != FT_OK) {
