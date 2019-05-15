@@ -23,9 +23,7 @@
 #define ALTUSB_BIT_LED		0x20
 #define ALTUSB_DMASK		0x3F
 
-#define DEFAULT_PORTSTATE	((ALTUSB_BIT_nCS |\
-				  ALTUSB_BIT_nCE |\
-				  ALTUSB_BIT_nCONFIG) & ALTUSB_DMASK)
+#define DEFAULT_PORTSTATE	(ALTUSB_BIT_nCS | ALTUSB_BIT_nCONFIG)
 
 #define FTDI_TIMEOUT		2000
 #define FTDI_LATENCY		1
@@ -153,12 +151,62 @@ static int spi_trx(struct spihw_t *spi, unsigned int cs,
 
 static int set_clr_tms(struct spihw_t *spi, bool set_nclear)
 {
-	return -1;
+	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
+	int rc;
+	DWORD written;
+
+	if (set_nclear)
+		priv->portstate |= ALTUSB_BIT_nCONFIG;
+	else
+		priv->portstate &= ~ALTUSB_BIT_nCONFIG;
+
+	/* start transfer */
+	rc = spi->ftdifunc->write(spi->fthandle,
+				  &priv->portstate, 1, &written);
+	if (rc != FT_OK) {
+		fprintf(stderr,
+			"%s: write to FT245 failed!\n", __func__);
+
+		return -1;
+	} else if (written != 1) {
+		fprintf(stderr,
+			"%s: failed to write fifo %d != %d\n",
+			__func__, written, 1);
+
+		return -1;
+	}
+
+	return 0;
 }
 
 static int set_clr_nce(struct spihw_t *spi, bool set_nclear)
 {
-	return -1;
+	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
+	int rc;
+	DWORD written;
+
+	if (set_nclear)
+		priv->portstate |= ALTUSB_BIT_nCE;
+	else
+		priv->portstate &= ~ALTUSB_BIT_nCE;
+
+	/* start transfer */
+	rc = spi->ftdifunc->write(spi->fthandle,
+				  &priv->portstate, 1, &written);
+	if (rc != FT_OK) {
+		fprintf(stderr,
+			"%s: write to FT245 failed!\n", __func__);
+
+		return -1;
+	} else if (written != 1) {
+		fprintf(stderr,
+			"%s: failed to write fifo %d != %d\n",
+			__func__, written, 1);
+
+		return -1;
+	}
+
+	return 0;
 }
 
 static int spi_setspeedmode(struct spihw_t *spi,
@@ -197,27 +245,11 @@ static int spi_claim(struct spihw_t *spi)
 static int spi_release(struct spihw_t *spi)
 {
 	struct altusb_priv_t *priv = (struct altusb_priv_t *)spi->priv;
-	int rc;
-	DWORD written;
 
 	priv->portstate &= ~ALTUSB_BIT_LED;
 
-	/* start transfer */
-	rc = spi->ftdifunc->write(spi->fthandle,
-				  &priv->portstate, 1, &written);
-	if (rc != FT_OK) {
-		fprintf(stderr,
-			"%s: write to FT245 failed!\n", __func__);
-
-		return -1;
-	} else if (written != 1) {
-		fprintf(stderr,
-			"%s: failed to write fifo %d != %d\n",
-			__func__, written, 1);
-
-		return -1;
-	}
-	return 0;
+	/* reset TMS to initial (high) state */
+	return set_clr_tms(spi, true);
 }
 
 
