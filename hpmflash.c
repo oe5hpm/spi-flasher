@@ -420,7 +420,7 @@ int main(int argc, char **argv)
 			fclose(f);
 			if (size == 0) {
 				printf(
-				       "WARN: zero size given, asuming filesize.\n");
+				       "WARN: zero size given, assuming filesize.\n");
 				erasesize = filesize;
 			} else {
 				erasesize = size;
@@ -447,7 +447,7 @@ int main(int argc, char **argv)
 			erasesize = 0;
 		}
 		if (erasesize == 0) {
-			printf("WARN: zero size given, asuming chiperase.\n");
+			printf("WARN: zero size given, assuming chiperase.\n");
 			printf("> starting chip erase ...\n");
 			ts_start = GetTimeStamp();
 			rc = m25pxx_chiperase(flash, &progprogress);
@@ -514,7 +514,7 @@ int main(int argc, char **argv)
 			       size, filesize);
 			size = filesize;
 		} else if (size == 0) {
-			printf("WARN: zero size given, asuming filesize.\n");
+			printf("WARN: zero size given, assuming filesize.\n");
 			size = filesize;
 		}
 		if ((offset + size) > chip->size) {
