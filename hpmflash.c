@@ -53,8 +53,12 @@ void flash_progress(void *arg, unsigned int percent, unsigned int flag)
 		printf("*"ANSI_COLOR_RESET"] %s\n", str != NULL ? str : "");
 	else if (flag == 0)
 		printf(ANSI_COLOR_GREEN"*");
-	else
+	else if (flag == 2)
+		printf(ANSI_COLOR_MAGENTA"*");
+	else if (flag == 1)
 		printf(ANSI_COLOR_YELLOW"*");
+	else
+		printf(ANSI_COLOR_RED"*");
 	fflush(stdout);
 }
 
@@ -96,6 +100,7 @@ int main(int argc, char **argv)
 
 	uint32_t offset = 0, size = 0;
 	uint8_t *buf = NULL;
+	uint8_t *cmpbuf = NULL;
 
 	bool detectonly = false;
 	bool erase = false;
@@ -343,8 +348,15 @@ int main(int argc, char **argv)
 
 	/* create inout buffer */
 	buf = calloc(1, chip->size);
+	cmpbuf = calloc(1, chip->sectorsize);
+
 	if (buf == NULL) {
 		printf("no mem for creating flash buffer.\n");
+		goto out;
+	}
+
+	if (cmpbuf == NULL) {
+		printf("no mem for creating compare buffer.\n");
 		goto out;
 	}
 
@@ -408,6 +420,8 @@ int main(int argc, char **argv)
 	if (erase == true) {
 		uint32_t eraseoffset = 0, erasesize = 0;
 		unsigned int sectors = 0;
+		bool havefile = false;
+		uint8_t *filebuf = NULL;
 
 		if (write == true) {
 			f = fopen(filename, "rb");
@@ -417,6 +431,8 @@ int main(int argc, char **argv)
 				goto out;
 			}
 			filesize = fread(buf, 1, chip->size, f);
+			havefile = true;
+			filebuf = buf;
 			fclose(f);
 			if (size == 0) {
 				printf(
@@ -465,18 +481,41 @@ int main(int argc, char **argv)
 
 		} else {
 			ts_start = GetTimeStamp();
+			memset(cmpbuf, 0xFF, chip->sectorsize);
+
 			while (erasesize > 0) {
 				sprintf(txtbuf, "0x%x", eraseoffset);
 				progprogress.arg = txtbuf;
-				rc = m25pxx_sectorerase(flash, eraseoffset,
-							&progprogress);
-				progprogress.arg = NULL;
-				if (rc != 0) {
-					STDERR("sector erase failed!\n");
-					ret = -1;
-					goto out;
+
+				/* check if image has != 0xFF for this sector */
+				if (havefile &&
+				    memcmp(filebuf, cmpbuf,
+					   chip->sectorsize) == 0) {
+					unsigned int cnt = 99;
+
+					sprintf(txtbuf,
+						"0x%x (skipped, blank)",
+						eraseoffset);
+					progprogress.fct(txtbuf, 0, 0);
+					do {
+						progprogress.fct(txtbuf,
+								 cnt,
+								 2);
+					} while (cnt-- > 1);
+					progprogress.fct(txtbuf, 100, 0);
+				} else {
+					rc = m25pxx_sectorerase(flash,
+								eraseoffset,
+								&progprogress);
+					progprogress.arg = NULL;
+					if (rc != 0) {
+						STDERR("sector erase failed!\n");
+						ret = -1;
+						goto out;
+					}
 				}
 				eraseoffset += chip->sectorsize;
+				filebuf += chip->sectorsize;
 				if (erasesize > chip->sectorsize)
 					erasesize -= chip->sectorsize;
 				else
@@ -526,6 +565,7 @@ int main(int argc, char **argv)
 
 		printf("programming %d bytes to offset 0x%x\n", size, offset);
 
+		progprogress.arg = NULL;
 		ts_start = GetTimeStamp();
 		rc = m25pxx_program(flash, buf, offset, size, &progprogress);
 		ts_end = GetTimeStamp();
@@ -548,6 +588,9 @@ out:
 
 	if (buf != NULL)
 		free(buf);
+
+	if (cmpbuf != NULL)
+		free(cmpbuf);
 
 	if (flash != NULL)
 		m25pxxflash_destroy(flash);
