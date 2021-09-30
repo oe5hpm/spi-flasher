@@ -418,7 +418,7 @@ int main(int argc, char **argv)
 	}
 
 	if (erase == true) {
-		uint32_t eraseoffset = 0, erasesize = 0;
+		uint32_t eraseoffset = 0, erasesize = 0, erasesize_nonblank;
 		unsigned int sectors = 0;
 		bool havefile = false;
 		uint8_t *filebuf = NULL;
@@ -432,7 +432,6 @@ int main(int argc, char **argv)
 			}
 			filesize = fread(buf, 1, chip->size, f);
 			havefile = true;
-			filebuf = buf;
 			fclose(f);
 			if (size == 0) {
 				printf(
@@ -454,7 +453,24 @@ int main(int argc, char **argv)
 		printf("-> erase from offset 0x%x with size %d ...\n",
 				eraseoffset, erasesize);
 
-		sectors = erasesize / chip->sectorsize;
+		erasesize_nonblank = erasesize;
+		if (havefile) {
+			memset(cmpbuf, 0xFF, chip->sectorsize);
+			filebuf = buf;
+			do {
+				if (memcmp(filebuf, cmpbuf,
+					   chip->sectorsize) == 0) {
+					erasesize_nonblank -= chip->sectorsize;
+				}
+				filebuf += chip->sectorsize;
+				if (filesize > chip->sectorsize)
+					filesize -= chip->sectorsize;
+				else
+					filesize = 0;
+			} while (filesize > 0);
+		}
+
+		sectors = erasesize_nonblank / chip->sectorsize;
 		if (eraseoffset < chip->sectorsize &&
 		    (chip->sectortime * sectors) > chip->bulktime) {
 			printf(
@@ -482,6 +498,7 @@ int main(int argc, char **argv)
 		} else {
 			ts_start = GetTimeStamp();
 			memset(cmpbuf, 0xFF, chip->sectorsize);
+			filebuf = buf;
 
 			while (erasesize > 0) {
 				sprintf(txtbuf, "0x%x", eraseoffset);
