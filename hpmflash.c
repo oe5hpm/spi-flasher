@@ -439,6 +439,7 @@ int main(int argc, char **argv)
 				erasesize = filesize;
 			} else {
 				erasesize = size;
+				filesize = size;
 			}
 		} else {
 			erasesize = size;
