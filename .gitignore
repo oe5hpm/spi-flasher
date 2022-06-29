@@ -5,4 +5,4 @@ hpmflash
 *.rbf
 *.sh
 *.dll
-hpmflash64.exe
+./hpmflash64.exe
